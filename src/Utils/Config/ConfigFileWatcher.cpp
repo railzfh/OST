@@ -142,10 +142,20 @@ void Start(const std::string& configPath, const std::string& defaultLuaDir) {
 }
 
 void Stop() {
-    if (!g_running) return;
     g_running = false;
     if (g_watcherThread.joinable()) {
-        g_watcherThread.join();
+        if (g_watcherThread.get_id() == std::this_thread::get_id()) {
+            g_watcherThread.detach();
+        } else {
+            g_watcherThread.join();
+        }
+    }
+}
+
+void Abandon() {
+    g_running = false;
+    if (g_watcherThread.joinable()) {
+        g_watcherThread.detach();
     }
 }
 

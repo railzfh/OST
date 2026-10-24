@@ -108,6 +108,12 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved)
         SteamUI::CoreUnhook();
         SteamClient::CoreUnhook();
         CloudRedirectHost::Shutdown();
+    } else {
+        // During process termination the OS has already stopped worker
+        // threads. Joining risks deadlock; detaching prevents global
+        // std::thread destructors from calling std::terminate.
+        ConfigFileWatcher::Abandon();
+        LuaFileWatcher::Abandon();
     }
 
     return TRUE;
