@@ -8,19 +8,48 @@ on:
         description: "Release version (e.g. v1.0.0)"
         required: true
         default: ""
+      prerelease:
+        description: "Mark this fork build as a prerelease"
+        type: boolean
+        default: true
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate release version and bundled metadata
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
+            throw 'Use a version such as v1.4.8-steam1792618285.1'
+          }
+          git show-ref --verify --quiet "refs/tags/$env:RELEASE_VERSION"
+          if ($LASTEXITCODE -eq 0) { throw 'Release tag already exists' }
+          if ($LASTEXITCODE -ne 1) { throw 'Could not check release tag' }
+          python tools/validate_steam_metadata.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure
-        run: cmake -S src -B build -G "Ninja Multi-Config" -DOPENSTEAMTOOL_VERSION="${{ github.event.inputs.version }}"
+        run: cmake -S src -B build -G "Ninja Multi-Config" "-DOPENSTEAMTOOL_VERSION=$env:RELEASE_VERSION"
 
       - name: Build Release
         run: cmake --build build --config Release
@@ -49,21 +78,31 @@ jobs:
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
-      - name: Create tag
-        run: |
-          git tag ${{ github.event.inputs.version }}
-          git push origin ${{ github.event.inputs.version }}
-
       - name: Package Release
-        run: 7z a OpenSteamTool-${{ github.event.inputs.version }}-Release.zip ".\build\Release\*" -mx5
+        run: 7z a "OpenSteamTool-$env:RELEASE_VERSION-Release.zip" ".\build\Release\*" -mx5
 
       - name: Package Debug
-        run: 7z a OpenSteamTool-${{ github.event.inputs.version }}-Debug.zip ".\build\Debug\*" -mx5
+        run: 7z a "OpenSteamTool-$env:RELEASE_VERSION-Debug.zip" ".\build\Debug\*" -mx5
+
+      - name: Verify packaged metadata
+        run: |
+          python tools/validate_steam_metadata.py --root build/Release/opensteamtool
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/validate_steam_metadata.py --root build/Debug/opensteamtool
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create tag
+        run: |
+          git tag "$env:RELEASE_VERSION" "$env:GITHUB_SHA"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin "refs/tags/$env:RELEASE_VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
+          prerelease: ${{ inputs.prerelease }}
           body: |
             ## Changes
 
@@ -73,7 +112,11 @@ jobs:
 
             Download `OpenSteamTool-${{ github.event.inputs.version }}-Release.zip` (or the `-Debug` variant if you need logging to `<steam>/opensteamtool directory`).
 
-            Extract and copy `dwmapi.dll`, `xinput1_4.dll` and `OpenSteamTool.dll` to your Steam root directory (e.g. `C:\Program Files (x86)\Steam`).
+            Close Steam. Extract and copy `dwmapi.dll`, `xinput1_4.dll`, `OpenSteamTool.dll` **and the entire `opensteamtool` folder** to your Steam root directory (e.g. `C:\Program Files (x86)\Steam`), merging folders. Do not overwrite your existing configuration or Lua files.
+
+            This fork tracks upstream `main` at `2a08b0b` (latest upstream release: `1.4.8`) and bundles metadata for Steam build `1792618285`. These metadata files apply only to the exact DLL hashes documented in [compatibility/README.md](https://github.com/railzfh/OST/blob/${{ github.sha }}/compatibility/README.md). A later Steam update requires matching new metadata.
+
+            The metadata was tested with the previously installed experimental v1.5.2 Debug build: initialization and the Steam library loaded, but an exit-time `abort()` was observed. The binaries in this release are built from this repository; game launch and download behavior have not been validated. See the compatibility notes for details.
 
             Create a Lua config directory (for example `C:\Program Files (x86)\Steam\config\lua`) and place your Lua scripts there. **NOT** `C:\Program Files (x86)\Steam\config\stplug-in`!
           files: |

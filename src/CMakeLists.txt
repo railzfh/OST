@@ -182,3 +182,15 @@ add_library(xinput1_4 SHARED
     xinput1_4/xinput1_4.cpp
     xinput1_4/xinput1_4.def
 )
+
+# Ship the exact-DLL metadata cache beside the loader DLLs in both configurations.
+# configure_file also makes metadata edits trigger CMake regeneration.
+set(OST_METADATA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../compatibility/opensteamtool")
+file(GLOB_RECURSE OST_METADATA_FILES CONFIGURE_DEPENDS
+    RELATIVE "${OST_METADATA_ROOT}" "${OST_METADATA_ROOT}/*.toml")
+foreach(config IN LISTS CMAKE_CONFIGURATION_TYPES)
+    foreach(metadata IN LISTS OST_METADATA_FILES)
+        configure_file("${OST_METADATA_ROOT}/${metadata}"
+            "${CMAKE_CURRENT_BINARY_DIR}/${config}/opensteamtool/${metadata}" COPYONLY)
+    endforeach()
+endforeach()
