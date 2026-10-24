@@ -48,6 +48,13 @@ jobs:
 
       - uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Test legacy and current packet layouts
+        run: |
+          cl /nologo /std:c++20 /EHsc /W4 /WX /Isrc tools/tests/net_packet_test.cpp /Fenet_packet_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\net_packet_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Configure
         run: cmake -S src -B build -G "Ninja Multi-Config" "-DOPENSTEAMTOOL_VERSION=$env:RELEASE_VERSION"
 
@@ -116,7 +123,7 @@ jobs:
 
             This fork tracks upstream `main` at `2a08b0b` (latest upstream release: `1.4.8`) and bundles metadata for Steam build `1792618285`. These metadata files apply only to the exact DLL hashes documented in [compatibility/README.md](https://github.com/railzfh/OST/blob/${{ github.sha }}/compatibility/README.md). A later Steam update requires matching new metadata.
 
-            The metadata was tested with the previously installed experimental v1.5.2 Debug build: initialization and the Steam library loaded, but an exit-time `abort()` was observed. The binaries in this release are built from this repository; game launch and download behavior have not been validated. See the compatibility notes for details.
+            This release also fixes packet payload access for the documented Steam client hash while preserving the legacy layout for other hashes. Native regression tests cover payload replacement, adjacent-field preservation, and carrier restoration. The corresponding local experimental-build repair restored Lua library entries; the source-built binaries in this release have not been tested in a live Steam session. Downloads, game launches, and the previously observed Debug exit-time `abort()` remain unverified. See the compatibility notes for details.
 
             Create a Lua config directory (for example `C:\Program Files (x86)\Steam\config\lua`) and place your Lua scripts there. **NOT** `C:\Program Files (x86)\Steam\config\stplug-in`!
           files: |

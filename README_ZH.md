@@ -35,7 +35,7 @@
 </div>
 ### 此 fork 的兼容构建
 
-此仓库基于上游 `main` 的 `2a08b0b`（最新正式版本为 `1.4.8`），附带 Steam Build `1792618285` 的精确 DLL 哈希适配文件。安装时，除三个 DLL 外，必须将压缩包中的 **`opensteamtool` 文件夹**合并到 Steam 根目录。验证范围、尚未合并的网络包布局修复及 Debug 退出异常见[兼容说明](compatibility/README.md)。
+此仓库基于上游 `main` 的 `2a08b0b`（最新正式版本为 `1.4.8`），附带 Steam Build `1792618285` 的精确 DLL 哈希适配文件。安装时，除三个 DLL 外，必须将压缩包中的 **`opensteamtool` 文件夹**合并到 Steam 根目录。已加入的按哈希选择网络包布局修复、验证范围及 Debug 退出异常见[兼容说明](compatibility/README.md)。
 
 
 ## 功能特性

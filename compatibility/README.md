@@ -1,20 +1,20 @@
-# Steam build 1792618285 compatibility metadata
+# Steam build 1792618285 compatibility
 
 This fork follows upstream `OpenSteam001/OpenSteamTool` main at
-`2a08b0bfdc96c9e3f75df20f3f37bc8d8c09ee3a`. The latest upstream release is
-`1.4.8`; upstream main contains five subsequent commits. This compatibility
-release does not import the experimental v1.5.2 fork or all pending upstream PRs.
+`2a08b0bfdc96c9e3f75df20f3f37bc8d8c09ee3a`. It does not import the experimental
+v1.5.2 fork or all pending upstream PRs.
+
+The `.1` compatibility release bundled missing metadata. The `.2` release also
+fixes access to the network packet payload for the exact client DLL below.
+Metadata loading and successful initialization alone do not demonstrate that
+library, network, or ownership hooks are executing.
 
 ## Installation
 
-Close Steam. Merge the packaged `opensteamtool` directory into the Steam root
-alongside `dwmapi.dll`, `xinput1_4.dll`, and `OpenSteamTool.dll`. Keep your existing
-configuration and Lua files. Copying only the DLLs omits the compatibility fix.
-
-The build automatically includes these files in both Release and Debug output.
-Upstream's existing loader still tries its remote sources first and falls back
-to the local cache when remote retrieval fails. Future successful upstream
-responses for the same hash may replace the local file.
+Close Steam. Copy the packaged `dwmapi.dll`, `xinput1_4.dll`, `OpenSteamTool.dll`
+and the entire `opensteamtool` directory into the Steam root, merging folders.
+Keep your existing configuration and Lua files. Use all files from the same
+release; copying only the DLLs omits the bundled compatibility metadata.
 
 The three TOMLs apply only to these exact DLLs:
 
@@ -23,67 +23,86 @@ The three TOMLs apply only to these exact DLLs:
 | steamui.dll | `cd9226db4e6c28942df70c22c0475d91fdd62cba5f100baae2d65af57cabb610` | 7 function patterns |
 | steamclient64.dll | `253e0a11a4415b38c78a42f7bdd6ecc426455f06c1ba6453a48090df3142dbbc` | 21 function patterns, 6 IPC methods across 2 interfaces |
 
-Do not rename the files for another Steam DLL hash. Steam updates can require
-new metadata and internal structure changes; a matching file alone does not
-establish complete runtime compatibility.
+Both Release and Debug builds include these files. The upstream loader tries
+remote sources first and falls back to the local cache; a successful remote
+response for the same hash may replace a local file. Do not rename a TOML for
+another DLL hash. Future Steam updates can also change internal structures.
 
-## Origin and validation
+## Packet layout fix
 
-The original error was caused by three missing hash-specific files, also absent
-from `OpenSteam001/steam-monitor` pattern commit `134c9b19` and IPC commit
-`c61b16cc` when checked on 2026-10-24.
+For the documented client hash, the payload pointer is at `+0x10` and its size
+is at `+0x18`. Upstream's legacy structure used `+0x08` and `+0x10` respectively.
+Reading the current packet through that legacy structure caused an access
+violation during `UnpackRaw`: the supposed payload pointer was `0xffffffff`.
+
+`Steam/NetPacket.h` selects the verified layout only for this exact SHA-256.
+Other hashes retain upstream's legacy layout; this preserves existing behavior
+and is not a claim of compatibility with every other Steam version. A packet
+view reads or writes only the payload pointer and size. Steam always receives
+the original packet address.
+
+All four consumers use the view: normal receive handling, packet replacement,
+RichPresence carrier injection, and Cloud carrier injection. Both injection
+paths restore the original fields after their call to Steam.
+
+This repository already binds the original `steamclient64.dll`. The local
+experimental fork also needed a separate repair because it hooked an unused
+shadow module. That experimental diversion machinery is not imported here.
+
+## Validation and its limits
 
 The metadata was derived from the exact installed DLLs using historical byte
-signatures, PE exception records, Capstone disassembly, embedded function-name
-strings, IPC message constants, and vtable positions. REA/Ghidra additionally
-confirmed the UI RunFrame call relationships, FillInAppOverview,
-BuildCompleteAppOverviewChange, and the 32-bit RepeatedField add operation.
+signatures, PE exception records, Capstone disassembly, embedded names, IPC
+constants and vtable slots. REA/Ghidra additionally confirmed the UI RunFrame
+relationships, FillInAppOverview, BuildCompleteAppOverviewChange, and the
+32-bit repeated-field add operation. All 28 signatures were unique; IPC hashes,
+fenceposts and six vtable slots were checked. The unused experimental
+`LoadModuleWithPath` entry is retained in the metadata.
 
-All 28 function signatures were unique in the corresponding DLL's executable
-sections. IPC hashes, fenceposts and all six vtable slots were checked against
-the client DLL. Function keys use FNV-1a over the actual names requested by the
-source, including `FindOrCreateKey`, `ReadAsBinary`, and `SpawnProcess`.
-`LoadModuleWithPath` is also retained for the previously installed experimental
-build; the current upstream base does not request that function.
+The packet offsets were verified from current `steamclient64.dll` helper RVA
+`0xD250A0`: native code reads the pointer at `+0x10` and size at `+0x18`.
+The original crash and affected tool access were located with the matching
+v1.5.2 PDB. The local repair changed all 18 affected displacement operands.
 
-Run `python tools/validate_steam_metadata.py` with Python 3.11 or newer to check
-TOML syntax, source-required function coverage, FNV-1a keys, and IPC records.
-CI runs this check before compilation, and the release workflow checks the
-staged metadata in both build configurations.
+Runtime evidence on 2026-10-24 is from that repaired experimental v1.5.2 Debug
+binary, not a newly compiled binary from this repository:
 
-Runtime evidence from 2026-10-24 covers the **previously installed
-aitronz/OpenSteamTool-exp v1.5.2 Debug build**, source `36f6a82`: all 28 patterns
-and six IPC methods loaded, initialization completed without startup warnings,
-and the Steam library displayed. A shutdown-time `abort()` was observed and
-remains unresolved. This does not constitute a runtime test of newly compiled
-upstream-main binaries. Game launches, downloads, CloudRedirect, and older Steam
-builds were not tested. Releases carrying this metadata default to prerelease.
+- 52 Lua files supplied 103 unique AppID/Depot entries; these are not 103 games.
+- The package hook added all 103 entries to its license list.
+- A 12-second sample observed 1,203 IPC calls, 137 ownership checks, 18 receives
+  and four current-pipe AppID queries in the actual client module.
+- Configured AppID `2483190` appeared in the library with an Update button,
+  replacing its earlier Purchase button. Steam remained running after repair.
 
-## Related upstream work
+Native regression tests exercise legacy/current payload reads, replacement,
+adjacent-field preservation and restoration, including empty and different DLL
+hashes. CI and release builds run these tests with MSVC before building DLLs.
+Metadata validation also runs before compilation and against staged output.
 
-There were 11 open upstream PRs when checked on 2026-10-24. The closest proposals
-are [#212](https://github.com/OpenSteam001/OpenSteamTool/pull/212) and
-[#218](https://github.com/OpenSteam001/OpenSteamTool/pull/218), both still open.
+Run from the repository root in an x64 MSVC developer shell:
 
-- #212 proposes selecting a CNetPacket field view using pointer readability,
-  with the data pointer moving from offset 0x08 to 0x10. Its author reports tests
-  on Steam build 1791918634, not this exact build.
-- #218 changes the packet structure unconditionally, switches metadata sources,
-  and changes cache handling. It supplies no exact-build verification for
-  1792618285. It does not include these three missing TOMLs.
+```powershell
+python tools/validate_steam_metadata.py
+cl /nologo /std:c++20 /EHsc /W4 /WX /Isrc tools/tests/net_packet_test.cpp /Fenet_packet_test.exe
+.\net_packet_test.exe
+```
 
-Neither proposal is merged in this release. In particular, the byte-pattern
-repair locates RecvPkt but does not update its CNetPacket accesses. Packet layout
-compatibility needs separate verification before claiming working downloads.
+The source-built release DLLs have not been installed into a live Steam session.
+Downloads and game launches are not validated. The existing manifest service
+returned HTTP 403 during local testing, and the experimental Debug build's
+shutdown-time `abort()` has not been resolved. CloudRedirect and RichPresence
+were not exercised end to end. Releases remain prereleases.
 
-Recent upstream development included metadata tracking (#55), library refresh
-and removals (#84, #86), manifest/ticket handling (#92), platform/IPC/injection
-refactoring (#109), stats API (#125), CloudRedirect (#138), and cloud RPC/stats
-timing (#153). The complete upstream history is available in the parent
-repository's [commit log](https://github.com/OpenSteam001/OpenSteamTool/commits/main/).
+## Related upstream proposals
+
+PRs [#212](https://github.com/OpenSteam001/OpenSteamTool/pull/212) and
+[#218](https://github.com/OpenSteam001/OpenSteamTool/pull/218) also discuss packet
+layout changes. This fix uses the exact verified hash rather than a pointer
+readability heuristic or an unconditional change for all versions. It does not
+change metadata providers or merge either entire proposal.
 
 ## Rollback
 
-Close Steam and remove only the three hash-specific TOMLs supplied by this
-directory. No user configuration, Lua script, ownership ticket, or Valve DLL is
-included or modified by this metadata package.
+Close Steam and restore all three loader/tool DLLs from your previous release.
+Remove only this package's three hash-specific TOMLs if also reverting the
+metadata. The package contains no user Lua scripts, credentials or Valve DLLs.
