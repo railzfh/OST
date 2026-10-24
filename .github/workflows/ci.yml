@@ -32,6 +32,13 @@ jobs:
 
       - uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Test legacy and current packet layouts
+        run: |
+          cl /nologo /std:c++20 /EHsc /W4 /WX /Isrc tools/tests/net_packet_test.cpp /Fenet_packet_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\net_packet_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Configure
         run: cmake -S src -B build -G "Ninja Multi-Config"
 
