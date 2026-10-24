@@ -1,5 +1,7 @@
 #include "Hooks_NetPacket.h"
 #include "Utils/SteamMetadata/ManifestClient.h"
+#include "Utils/SteamMetadata/SteamDiagnostics.h"
+#include "Steam/NetPacket.h"
 #include "Hooks_Misc.h"
 #include "HookMacros.h"
 #include "dllmain.h"
@@ -20,6 +22,9 @@
 //  Shared infrastructure
 // ════════════════════════════════════════════════════════════════
 namespace {
+
+    // Selected before the receive detour is installed; unchanged while active.
+    NetPacket::Layout g_packetLayout = NetPacket::Layout::Legacy;
 
     constexpr uint32 kMaxBodySize   = 65536;
     constexpr uint32 kMaxHdrSize    = 1024;
@@ -90,15 +95,16 @@ namespace {
         if (newSize > sizeof(g_RecvPacketPool[0])) return;
 
         uint8* buf = g_RecvPacketPool[g_RecvPacketPoolIdx];
-        const MsgHdr* orig = reinterpret_cast<const MsgHdr*>(p->m_pubData);
+        const NetPacket::View packet(p, g_packetLayout);
+        const MsgHdr* orig = reinterpret_cast<const MsgHdr*>(packet.Data());
         MsgHdr* out = reinterpret_cast<MsgHdr*>(buf);
         out->eMsg         = orig->eMsg;
         out->headerLength = cbNewHdr;
         memcpy(buf + sizeof(MsgHdr), pNewHdr, cbNewHdr);
         if (cbNewBody)
             memcpy(buf + sizeof(MsgHdr) + cbNewHdr, pNewBody, cbNewBody);
-        p->m_pubData = buf;
-        p->m_cubData = newSize;
+        packet.SetData(buf);
+        packet.SetSize(newSize);
 
         g_RecvPacketPoolIdx = (g_RecvPacketPoolIdx + 1) % kPacketPoolSize;
     }
@@ -871,13 +877,14 @@ namespace Hooks_NetPacket_RichPresence {
         if (!g_InjectPending || g_cbInjectPkt == 0) return;
         g_InjectPending = false;
 
-        uint8* origData = pCarrier->m_pubData;
-        uint32 origSize = pCarrier->m_cubData;
-        pCarrier->m_pubData = g_InjectPkt;
-        pCarrier->m_cubData = g_cbInjectPkt;
+        const NetPacket::View carrier(pCarrier, g_packetLayout);
+        uint8* origData = carrier.Data();
+        uint32 origSize = carrier.Size();
+        carrier.SetData(g_InjectPkt);
+        carrier.SetSize(g_cbInjectPkt);
         invokeOriginal(pThis, pCarrier);
-        pCarrier->m_pubData = origData;
-        pCarrier->m_cubData = origSize;
+        carrier.SetData(origData);
+        carrier.SetSize(origSize);
         LOG_RICHPRESENCE_INFO("Delivered manufactured self-PersonaState ({} bytes)", g_cbInjectPkt);
     }
 
@@ -1104,13 +1111,14 @@ namespace Hooks_NetPacket_Cloud {
                 g_pending.pop_front();
             }
 
-            uint8* origData = pCarrier->m_pubData;
-            uint32 origSize = pCarrier->m_cubData;
-            pCarrier->m_pubData = pkt.data();
-            pCarrier->m_cubData = static_cast<uint32>(pkt.size());
+            const NetPacket::View carrier(pCarrier, g_packetLayout);
+            uint8* origData = carrier.Data();
+            uint32 origSize = carrier.Size();
+            carrier.SetData(pkt.data());
+            carrier.SetSize(static_cast<uint32>(pkt.size()));
             invokeOriginal(pThis, pCarrier);
-            pCarrier->m_pubData = origData;
-            pCarrier->m_cubData = origSize;
+            carrier.SetData(origData);
+            carrier.SetSize(origSize);
             LOG_NETPACKET_DEBUG("Cloud: delivered {}-byte response", pkt.size());
         }
     }
@@ -1329,7 +1337,8 @@ namespace {
         EMsg eMsg;
         const uint8 *pBody, *pHdr;
         uint32 cbBody, cbHdr;
-        if (UnpackRaw(pPacket->m_pubData, pPacket->m_cubData,
+        const NetPacket::View packet(pPacket, g_packetLayout);
+        if (UnpackRaw(packet.Data(), packet.Size(),
                      eMsg, pHdr, cbHdr, pBody, cbBody)) {
             g_ResizedInPlace = false;
             RecvJob(eMsg, pBody, cbBody, pHdr, cbHdr);
@@ -1340,7 +1349,7 @@ namespace {
                     g_NewHdr, g_cbNewHdr,
                     pBody, g_NewBodySize);
             } else if (g_ResizedInPlace) {
-                pPacket->m_cubData = sizeof(MsgHdr) + cbHdr + g_NewBodySize;
+                packet.SetSize(sizeof(MsgHdr) + cbHdr + g_NewBodySize);
             } else if (g_NeedReplaceHdr || g_NeedReplaceBody) {
                 ReplaceRecvPacket(pPacket,
                     g_NeedReplaceHdr  ? g_NewHdr  : pHdr,
@@ -1358,6 +1367,11 @@ namespace {
 
 namespace Hooks_NetPacket {
     void Install() {
+        g_packetLayout = NetPacket::ForSteamClientHash(SteamDiagnostics::Sha256Of(SteamclientPath));
+        LOG_NETPACKET_INFO("Packet payload layout: {}",
+            g_packetLayout == NetPacket::Layout::Steam1792618285
+                ? "data=0x10 size=0x18 (verified client hash)"
+                : "legacy data=0x08 size=0x10");
         RESOLVE_C(PchMsgNameFromEMsg);
         HOOK_BEGIN();
         INSTALL_HOOK_C(BBuildAndAsyncSendFrame);

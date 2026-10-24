@@ -206,15 +206,9 @@ struct IKeyValuesSystem {
 };
 using KeyValuesSystemSteam_t = IKeyValuesSystem* (*)();
 
-struct CNetPacket
-{
-	HCONNECTION m_hConnection;
-	uint8* m_pubData;
-	uint32 m_cubData;
-	int32 m_cRef;
-	uint8* m_pubNetworkBuffer;
-	CNetPacket* m_pNext;
-};
+// Steam owns this object. Access payload fields through NetPacket::View,
+// since their offsets vary with the client DLL. Keep its original address.
+struct CNetPacket;
 
 struct MsgHdr
 {

@@ -35,7 +35,7 @@
 </div>
 ### Fork compatibility build
 
-This fork follows upstream `main` at `2a08b0b` (latest upstream release: `1.4.8`) and bundles exact-DLL metadata for Steam build `1792618285`. Copy the packaged **`opensteamtool` directory as well as the three DLLs** into the Steam root. Read the [compatibility notes](compatibility/README.md) for validation scope, pending packet-layout fixes, and the observed Debug shutdown error.
+This fork follows upstream `main` at `2a08b0b` (latest upstream release: `1.4.8`) and bundles exact-DLL metadata for Steam build `1792618285`. Copy the packaged **`opensteamtool` directory as well as the three DLLs** into the Steam root. Read the [compatibility notes](compatibility/README.md) for the hash-selected packet-layout fix, validation scope, and the observed Debug shutdown error.
 
 
 ## Feature

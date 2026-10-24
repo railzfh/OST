@@ -8,8 +8,9 @@
 namespace NetPacket {
 enum class Layout { Legacy, Steam1792618285 };
 
-constexpr Layout ForSteamClientHash(std::string_view) noexcept {
-    return Layout::Legacy;
+constexpr Layout ForSteamClientHash(std::string_view hash) noexcept {
+    return hash == "253e0a11a4415b38c78a42f7bdd6ecc426455f06c1ba6453a48090df3142dbbc"
+        ? Layout::Steam1792618285 : Layout::Legacy;
 }
 
 // Operate on the original packet address; never pass an adjusted view to Steam.
