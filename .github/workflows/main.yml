@@ -72,12 +72,11 @@ jobs:
         shell: pwsh
         run: |
           $package = "package-release"
-          New-Item -ItemType Directory -Path $package, "$package/config/lua" -Force | Out-Null
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
           foreach ($name in @("OpenSteamTool.dll", "dwmapi.dll", "xinput1_4.dll")) {
             Copy-Item -LiteralPath (Join-Path "build/Release" $name) -Destination (Join-Path $package $name) -Force
           }
           Copy-Item -LiteralPath "build/Release/opensteamtool" -Destination (Join-Path $package "opensteamtool") -Recurse -Force
-          Copy-Item -LiteralPath "compatibility/manifest.lua" -Destination "$package/config/lua/manifest.lua" -Force
           $forbidden = Get-ChildItem -Path $package -Recurse -File | Where-Object {
             $_.Extension -in @(".pdb", ".ilk", ".exp", ".lib") -or $_.Name -eq "lua_static.lib"
           }
@@ -89,9 +88,8 @@ jobs:
         shell: pwsh
         run: |
           $package = "package-debug"
-          New-Item -ItemType Directory -Path $package, "$package/config/lua" -Force | Out-Null
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
           Copy-Item -Path "build/Debug/*" -Destination $package -Recurse -Force
-          Copy-Item -LiteralPath "compatibility/manifest.lua" -Destination "$package/config/lua/manifest.lua" -Force
           if (-not (Test-Path -LiteralPath "$package/OpenSteamTool.pdb")) {
             throw 'Debug package is missing OpenSteamTool.pdb'
           }
@@ -147,15 +145,15 @@ jobs:
 
             ## Installation
 
-            Close Steam before installing. Download the `-Release.zip` asset for normal use. It contains every required runtime file: `OpenSteamTool.dll`, `dwmapi.dll`, `xinput1_4.dll`, the complete `opensteamtool` compatibility directory, and `config/lua/manifest.lua`.
+            Close Steam before installing. Download the `-Release.zip` asset for normal use. It contains every required runtime file: `OpenSteamTool.dll`, `dwmapi.dll`, `xinput1_4.dll`, and the complete `opensteamtool` compatibility directory.
 
-            Extract the Release archive directly into the Steam root directory (for example `D:\software\steam`), merging folders. Do not overwrite existing game Lua files in `config/lua`.
+            Extract the Release archive directly into the Steam root directory (for example `D:\software\steam`), merging folders. Existing configuration and user Lua files are not included and remain untouched.
 
             The `-Debug.zip` asset contains the same installable files plus PDB/ILK/EXP/LIB development files and a logging-enabled DLL. Use it only for diagnostics.
 
             This build targets Steam Build `1792618285` and the exact DLL hashes documented in [compatibility/README.md](https://github.com/railzfh/OST/blob/${{ github.sha }}/compatibility/README.md). A later Steam update requires matching metadata.
 
-            Create or keep your Lua game configs in `<Steam>/config/lua` (not `config/stplug-in`).
+            Keep your Lua game configs in `<Steam>/config/lua` (not `config/stplug-in`).
           files: |
             OpenSteamTool-${{ env.RELEASE_VERSION }}-Release.zip
             OpenSteamTool-${{ env.RELEASE_VERSION }}-Debug.zip

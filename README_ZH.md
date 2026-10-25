@@ -35,7 +35,7 @@
 </div>
 ### 此 fork 的兼容构建
 
-此仓库基于上游 `main` 的 `2a08b0b`（上游最新版本为 `1.4.8`），附带 Steam Build `1792618285` 的精确 DLL 适配文件。推送标签后，Release 资产会包含完整运行文件：三个 DLL、`opensteamtool` 适配目录和 `config/lua/manifest.lua`；Debug 资产包含相同安装文件及 PDB/ILK/EXP/LIB 调试文件。网络包布局、清单回退、退出时 watcher 修复和验证边界见[兼容说明](compatibility/README.md)。
+此仓库基于上游 `main` 的 `2a08b0b`（上游最新版本为 `1.4.8`），附带 Steam Build `1792618285` 的精确 DLL 适配文件。推送标签后，Release 资产会包含完整运行文件：三个 DLL 和 `opensteamtool` 适配目录；Debug 资产包含相同安装文件及 PDB/ILK/EXP/LIB 调试文件。用户配置和 Lua 文件不会进入安装包。网络包布局、退出时 watcher 修复和验证边界见[兼容说明](compatibility/README.md)。
 
 
 ## 功能特性
