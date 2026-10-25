@@ -11,10 +11,12 @@ library, network, or ownership hooks are executing.
 
 ## Installation
 
-Close Steam. Copy the packaged `dwmapi.dll`, `xinput1_4.dll`, `OpenSteamTool.dll`
-and the entire `opensteamtool` directory into the Steam root, merging folders.
-Keep your existing configuration and Lua files. Use all files from the same
-release; copying only the DLLs omits the bundled compatibility metadata.
+Close Steam. Extract the Release archive into the Steam root, merging folders.
+It contains `dwmapi.dll`, `xinput1_4.dll`, `OpenSteamTool.dll`, the entire
+`opensteamtool` directory, and `config/lua/manifest.lua`. Keep your existing
+configuration and game Lua files. Use all files from the same release; copying
+only the DLLs omits the bundled compatibility metadata. The Debug archive
+contains the same installable files plus PDB/ILK/EXP/LIB development files.
 
 The three TOMLs apply only to these exact DLLs:
 
@@ -88,10 +90,14 @@ cl /nologo /std:c++20 /EHsc /W4 /WX /Isrc tools/tests/net_packet_test.cpp /Fenet
 ```
 
 The source-built release DLLs have not been installed into a live Steam session.
-Downloads and game launches are not validated. The existing manifest service
-returned HTTP 403 during local testing, and the experimental Debug build's
-shutdown-time `abort()` has not been resolved. CloudRedirect and RichPresence
-were not exercised end to end. Releases remain prereleases.
+Downloads and game launches are not validated end to end. Provider availability
+remains outside this project; the packaged `config/lua/manifest.lua` supplies
+fallback manifest request-code sources. The shutdown-time watcher `abort()` is
+fixed in source by detaching watcher threads during process termination and was
+verified in the local repair binary; CI compiles the source fix, but this newly
+built DLL has not been installed into live Steam. CloudRedirect and RichPresence
+were not exercised end to end. A pushed tag publishes both a formal Release
+archive and a diagnostic Debug archive.
 
 ## Related upstream proposals
 
@@ -105,4 +111,6 @@ change metadata providers or merge either entire proposal.
 
 Close Steam and restore all three loader/tool DLLs from your previous release.
 Remove only this package's three hash-specific TOMLs if also reverting the
-metadata. The package contains no user Lua scripts, credentials or Valve DLLs.
+metadata. Remove `config/lua/manifest.lua` as well if it was added only by this
+package. The package contains no user game Lua scripts, credentials or Valve
+DLLs.

@@ -35,7 +35,7 @@
 </div>
 ### Fork compatibility build
 
-This fork follows upstream `main` at `2a08b0b` (latest upstream release: `1.4.8`) and bundles exact-DLL metadata for Steam build `1792618285`. Copy the packaged **`opensteamtool` directory as well as the three DLLs** into the Steam root. Read the [compatibility notes](compatibility/README.md) for the hash-selected packet-layout fix, validation scope, and the observed Debug shutdown error.
+This fork follows upstream `main` at `2a08b0b` (latest upstream release: `1.4.8`) and bundles exact-DLL metadata for Steam build `1792618285`. The tag-triggered Release asset contains all runtime files: the three DLLs, the complete `opensteamtool` directory, and `config/lua/manifest.lua`. The Debug asset contains the same installation plus PDB/ILK/EXP/LIB files. Read the [compatibility notes](compatibility/README.md) for the packet-layout, manifest fallback, exit-time watcher fix, and validation limits.
 
 
 ## Feature
